@@ -3,30 +3,172 @@ Flowmap
 NP
 25/10/2018
 
-R Markdown
-----------
+Vyner Street geography of imports
+---------------------------------
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+This is a log to register the process of creating a geographic-connections-map of imports that illustrates the inputs of the 'geography of production' of the firms interviewed for the 'Vyner Street' case study in Hackney in the context of the <http://citiesofmaking.com/> project.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+------------------------------------------------------------------------
+
+URLs visited for reference:
+- <https://github.com/rafapereirabr/flow-map-in-r-ggplot/blob/master/Flow%20Map%20in%20R.R>
+- <https://gis.stackexchange.com/questions/71921/list-of-central-coordinates-for-all-countries/71958>
+- <https://www.r-graph-gallery.com/192-ggplot-themes/>
+- <https://flowingdata.com/2011/05/11/how-to-map-connections-with-great-circles/>
+
+------------------------------------------------------------------------
+
+###### Packages and Libraries
 
 ``` r
-summary(cars)
+# Packages
+#install.packages("rworldmap")
+#install.packages("mapproj")
+#install.packages("rworldxtra")
+
+# Libraries
+library(maps)
+library(geosphere)
+library(dplyr)
+library(ggplot2)
+library(rworldmap)
+library(plyr)
+library(data.table)
+library(ggthemes)
+library(rgeos)
+library(readr)
+library(data.table)
+library(mapproj)
+library(tmap)
+library(rworldxtra)
 ```
 
-    ##      speed           dist       
-    ##  Min.   : 4.0   Min.   :  2.00  
-    ##  1st Qu.:12.0   1st Qu.: 26.00  
-    ##  Median :15.0   Median : 36.00  
-    ##  Mean   :15.4   Mean   : 42.98  
-    ##  3rd Qu.:19.0   3rd Qu.: 56.00  
-    ##  Max.   :25.0   Max.   :120.00
+#### Prepare de dataset
 
-Including Plots
----------------
+###### 1.Load .csv file with 'From' and 'To' information
 
-You can also embed plots, for example:
+``` r
+Mwf <- read_csv("/Volumes/ucfnnap-1/COM/material_world_flow.csv")
+```
 
-![](Flowmap_files/figure-markdown_github/pressure-1.png)
+###### 2.Get worldmap (from rworldmap library) and get centroids
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+``` r
+# get world map
+wmap <- getMap(resolution="high")
+# get centroids
+centroids <- gCentroid(wmap, byid=TRUE)
+```
+
+###### 3.Get a dataframe with centroids
+
+``` r
+# get a data.frame with centroids
+cent <- as.data.frame(centroids)
+head(cent)
+```
+
+    ##                     x         y
+    ## Aruba       -69.97345  12.51678
+    ## Afghanistan  66.00845  33.83627
+    ## Angola       17.53646 -12.29118
+    ## Anguilla    -63.06082  18.22560
+    ## Albania      20.05399  41.14258
+    ## Aland        20.03715  60.20733
+
+###### 4.Convert rownames 'rn' into a variable
+
+``` r
+# convert rownames into variable 
+setDT(cent, keep.rownames = TRUE)[]
+```
+
+    ##                rn          x         y
+    ##   1:        Aruba  -69.97345  12.51678
+    ##   2:  Afghanistan   66.00845  33.83627
+    ##   3:       Angola   17.53646 -12.29118
+    ##   4:     Anguilla  -63.06082  18.22560
+    ##   5:      Albania   20.05399  41.14258
+    ##  ---                                  
+    ## 249:        Samoa -172.16028 -13.75468
+    ## 250:        Yemen   47.59093  15.90515
+    ## 251: South Africa   25.08773 -29.00105
+    ## 252:       Zambia   27.77421 -13.46011
+    ## 253:     Zimbabwe   29.85188 -19.00254
+
+###### 5.Merge 'Wmf' with 'cent' dataframe by columns with country names 'From' and 'rn'. Verify that the names of the countries are equally spelled. Check the number of observations in your 'joined' object.
+
+``` r
+# merge material_world_flow with centroids
+odm <- merge(Mwf, cent, by.x="From", by.y="rn", all.x=T)
+head(odm)
+```
+
+    ##        From           Import      To  x.x  y.x     yend     xend     Type
+    ## 1 Argentina     Sheep’s wool Hackney <NA> <NA> 51.54032 -0.06039 Material
+    ## 2    Brazil             Jars Hackney <NA> <NA> 51.54032 -0.06039  Product
+    ## 3     China     Metal frames Hackney <NA> <NA> 51.54032 -0.06039  Product
+    ## 4   China 1           Labels Hackney <NA> <NA> 51.54032 -0.06039  Product
+    ## 5   China 2 Electronic chips Hackney <NA> <NA> 51.54032 -0.06039  Product
+    ## 6   Germany          Threads Hackney <NA> <NA> 51.54032 -0.06039  Product
+    ##          Region       x.y       y.y
+    ## 1 International -65.17822 -35.38270
+    ## 2 International -53.09397 -10.78278
+    ## 3 International 103.82491  36.56128
+    ## 4 International        NA        NA
+    ## 5 International        NA        NA
+    ## 6   Continental  10.38155  51.10621
+
+###### 6.Delete empty columns by index (4,5)
+
+``` r
+# specify columns to remove with negative index
+odm <- odm[, -c(4, 5)]
+```
+
+###### 7.Given that some countries were repeated (same centroid) and we would want our connections not to overlap, the 'To' fields was empty (NA) in our dataset. Therefore, we now need to generate this location (or destination) for columns 'x.y' (long) and 'y.y' (lat). The code checks the name of the country and asigns a value to the respective cell. Now our dataset is complete.
+
+``` r
+odm$x.y[odm$From == "China 1"] <- odm$x.y[odm$From == "China"]-0.5
+odm$y.y[odm$From == "China 1"] <- odm$y.y[odm$From == "China"]-0.5
+odm$x.y[odm$From == "China 2"] <- odm$x.y[odm$From == "China"]-1
+odm$y.y[odm$From == "China 2"] <- odm$y.y[odm$From == "China"]-1
+
+odm$x.y[odm$From == "Germany 1"] <- odm$x.y[odm$From == "Germany"]-0.5
+odm$y.y[odm$From == "Germany 1"] <- odm$y.y[odm$From == "Germany"]-0.5
+odm$x.y[odm$From == "Germany 2"] <- odm$x.y[odm$From == "Germany"]-1
+odm$y.y[odm$From == "Germany 2"] <- odm$y.y[odm$From == "Germany"]-1
+
+odm$x.y[odm$From == "Italy 1"] <- odm$x.y[odm$From == "Italy"]-0.5
+odm$y.y[odm$From == "Italy 1"] <- odm$y.y[odm$From == "Italy"]-0.5
+odm$x.y[odm$From == "Italy 2"] <- odm$x.y[odm$From == "Italy"]-1
+odm$y.y[odm$From == "Italy 2"] <- odm$y.y[odm$From == "Italy"]-1
+```
+
+#### Create simple map using curve line
+
+###### 8.Get worldmap from library 'rworldxtra' to use as a 'basemap' (with high resolution). Then convert to dataframe with the 'fortify' function.
+
+``` r
+worldMap <- getMap(resolution = "high")
+mapworld_df <- fortify(worldMap)
+```
+
+    ## Regions defined for each Polygons
+
+``` r
+class(mapworld_df)
+```
+
+    ## [1] "data.frame"
+
+###### 9.Create a test plot for Europe. First, get the boundingbox to determine the 'xlim' and 'ylim' of the plot. This URL will help <https://boundingbox.klokantech.com/> .Copy the geojson to get the coordinates to create the 'xlim1' and 'ylim1' objects.
+
+``` r
+# [[[-10.8421722152,34.0420631631],[45.1606791686,34.0420631631],[45.1606791686,59.3006822903],[-10.8421722152,59.3006822903],[-10.8421722152,34.0420631631]]]
+xlim1 <- c(-23.3537208175, 51.9816177994)
+ylim1 <- c(30.0673444226, 61.7436916491)
+eu <- map("world", col="white", fill=TRUE, bg="#f2f2f2", lwd=0.05, xlim=xlim1, ylim=ylim1)
+```
+
+![](Flowmap_files/figure-markdown_github/unnamed-chunk-10-1.png)
