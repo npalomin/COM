@@ -48,7 +48,7 @@ library(rworldxtra)
 
 #### Part I: Prepare de dataset
 
-###### 1. Load .csv file with 'From' and 'To' information  
+###### 1. ç 'From' and 'To' information  
 
 ```{r, message=FALSE}
 Mwf <- read_csv("/Volumes/ucfnnap-1/COM/material_world_flow.csv")
@@ -197,7 +197,7 @@ ggplot() + bmap + conn_cont + coord_cartesian(xlim=xlim2, ylim=ylim2) +
   theme(legend.position="top", legend.title = element_text(face = "italic", family = "serif"))
 ```
 
-###### 18. Next we can create the 'International' map with similar aesthetics.
+###### 18. Next we can create the 'International' map with similar aesthetics. We also use the function coord_equal to improve the look of the map
 ```{r}
 conn_int <- geom_curve(data = odm_int, aes(x = x.y, y = y.y, xend = xend, yend = yend, color=Import, linetype=Type), curvature = 0.1)
 
@@ -208,5 +208,66 @@ L_bmap <- geom_polygon(data= L_mapworld_df, aes(long,lat, group=group), fill="gr
 ggplot() + L_bmap + conn_int + coord_cartesian() + ylim(ylim3) +
   theme_map() + 
   scale_color_manual(values = com8) + 
+  theme(legend.position="top", legend.title = element_text(face = "italic", family = "serif")) +
+  coord_equal()
+```
+
+### Section Two
+
+In this section we'll anaylise the market of the ['Smartibot'](https://www.kickstarter.com/projects/460355237/smartibot-the-worlds-first-ai-enabled-cardboard-ro?ref=nav_search&result=project&term=smartibot), a high-tech product that was designed and prototyped in 'Machines Room'.
+
+###### Preparing the data
+
+###### 1. We collected the data on the top 10 backers's countries from the project website on kikstarter. Load .csv files with this information
+```{r, message=FALSE}
+sbb <- read_csv("sb_backers.csv")
+head(sbb)
+```
+
+###### 2. We can now merge this dataframe with the centroids. However this time we'll use a list from [Socrata](https://opendata.socrata.com/dataset/Country-List-ISO-3166-Codes-Latitude-Longitude/mnkm-8ram)
+
+```{r, message=FALSE}
+socra <- read_csv("https://opendata.socrata.com/resource/mnkm-8ram.csv")
+
+sbb_od <- merge(sbb, socra, by.x="From", by.y="Country", all.x=T)
+
+# Change columns name
+names(sbb_od)[11] <- "x"
+names(sbb_od)[10] <- "y"
+head(sbb_od)
+```
+
+###### 3. Now it is possible to create the geom_curve object for the 'sbb_od' dataframe. We set the size of lines according to 'Backers'
+```{r}
+sbb_conn <- geom_curve(data = sbb_od, aes(x = x, y = y, xend = xend, yend = yend, size=Backers), curvature = 0.1)
+bmap <- geom_polygon(data= L_mapworld_df, aes(long,lat, group=group), fill="white")
+
+ggplot() + bmap + sbb_conn
+```
+
+###### 4. Let's try to zoom into Europe. We first modify the alpha value to have a clearer picture of the lines tha overlap. Then we customized the bmap
+```{r}
+sbb_conn <- geom_curve(data = sbb_od,
+                       aes(x = x, y = y, xend = xend, yend = yend, size=Backers), alpha = 0.5,
+                           colour ="#2bfd94", curvature = 0.1)
+
+bmap <- geom_polygon(data= mapworld_df, aes(long,lat, group=group), fill="grey95", colour="grey65", size=0.03)
+
+ggplot() + bmap + sbb_conn + coord_cartesian(xlim=xlim2, ylim=ylim2) +
+  scale_size_continuous(limits = c(0,300), breaks = c(30, 50, 100, 200)) +
   theme(legend.position="top", legend.title = element_text(face = "italic", family = "serif"))
+```
+
+###### 4. One last step before using the theme_map function, is to label the curves that end outside of the plot.
+```{r}
+can <- geom_text(aes(x=-11, y=52, label = "Canada"), size=2.7)
+us <- geom_text(aes(x=-11, y=49.5, label = "US"), size=2.7)
+jap <- geom_text(aes(x=40, y=50.5, label = "Japan"), size=2.7)
+aus <- geom_text(aes(x=35, y=35, label = "Australia"), size=2.7)
+
+scsc <- scale_size_continuous(limits = c(0,300), breaks = c(30, 50, 100, 200))
+tema <- theme(legend.position="top", legend.title = element_text(face = "italic", family = "serif"))
+
+ggplot() + bmap + sbb_conn + coord_cartesian(xlim=xlim2, ylim=ylim2) +
+  scsc + theme_map() + tema + can + us + jap + aus
 ```

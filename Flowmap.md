@@ -45,7 +45,7 @@ library(rworldxtra)
 
 #### Part I: Prepare de dataset
 
-###### 1. Load .csv file with 'From' and 'To' information
+###### 1. ç 'From' and 'To' information
 
 ``` r
 Mwf <- read_csv("/Volumes/ucfnnap-1/COM/material_world_flow.csv")
@@ -268,7 +268,7 @@ ggplot() + bmap + conn_cont + coord_cartesian(xlim=xlim2, ylim=ylim2) +
 
 ![](Flowmap_files/figure-markdown_github/unnamed-chunk-18-1.png)
 
-###### 18. Next we can create the 'International' map with similar aesthetics.
+###### 18. Next we can create the 'International' map with similar aesthetics. We also use the function coord\_equal to improve the look of the map
 
 ``` r
 conn_int <- geom_curve(data = odm_int, aes(x = x.y, y = y.y, xend = xend, yend = yend, color=Import, linetype=Type), curvature = 0.1)
@@ -280,7 +280,105 @@ L_bmap <- geom_polygon(data= L_mapworld_df, aes(long,lat, group=group), fill="gr
 ggplot() + L_bmap + conn_int + coord_cartesian() + ylim(ylim3) +
   theme_map() + 
   scale_color_manual(values = com8) + 
+  theme(legend.position="top", legend.title = element_text(face = "italic", family = "serif")) +
+  coord_equal()
+```
+
+    ## Coordinate system already present. Adding new coordinate system, which will replace the existing one.
+
+![](Flowmap_files/figure-markdown_github/unnamed-chunk-19-1.png)
+
+### Section Two
+
+In this section we'll anaylise the market of the ['Smartibot'](https://www.kickstarter.com/projects/460355237/smartibot-the-worlds-first-ai-enabled-cardboard-ro?ref=nav_search&result=project&term=smartibot), a high-tech product that was designed and prototyped in 'Machines Room'.
+
+###### Preparing the data
+
+###### 1. We collected the data on the top 10 backers's countries from the project website on kikstarter. Load .csv files with this information
+
+``` r
+sbb <- read_csv("sb_backers.csv")
+head(sbb)
+```
+
+    ## # A tibble: 6 x 6
+    ##   `To(end)` From           Backers  yend    xend Region       
+    ##   <chr>     <chr>            <int> <dbl>   <dbl> <chr>        
+    ## 1 Hackney   United Kingdom     292  51.5 -0.0604 Continental  
+    ## 2 Hackney   United States      280  51.5 -0.0604 International
+    ## 3 Hackney   Germany            107  51.5 -0.0604 Continental  
+    ## 4 Hackney   Australia           46  51.5 -0.0604 International
+    ## 5 Hackney   France              43  51.5 -0.0604 Continental  
+    ## 6 Hackney   Netherlands         39  51.5 -0.0604 Continental
+
+###### 2. We can now merge this dataframe with the centroids. However this time we'll use a list from [Socrata](https://opendata.socrata.com/dataset/Country-List-ISO-3166-Codes-Latitude-Longitude/mnkm-8ram)
+
+``` r
+socra <- read_csv("https://opendata.socrata.com/resource/mnkm-8ram.csv")
+
+sbb_od <- merge(sbb, socra, by.x="From", by.y="Country", all.x=T)
+
+# Change columns name
+names(sbb_od)[11] <- "x"
+names(sbb_od)[10] <- "y"
+head(sbb_od)
+```
+
+    ##        From To(end) Backers     yend     xend        Region Alpha-2 code
+    ## 1 Australia Hackney      46 51.54032 -0.06039 International           AU
+    ## 2    Canada Hackney      26 51.54032 -0.06039 International           CA
+    ## 3    France Hackney      43 51.54032 -0.06039   Continental           FR
+    ## 4   Germany Hackney     107 51.54032 -0.06039   Continental           DE
+    ## 5     Italy Hackney      29 51.54032 -0.06039 International           IT
+    ## 6     Japan Hackney      33 51.54032 -0.06039 International           JP
+    ##   Alpha-3 code Numeric code        y        x Icon
+    ## 1          AUS           36 -27.0000 133.0000 <NA>
+    ## 2          CAN          124  60.0000 -95.0000 <NA>
+    ## 3          FRA          250  46.0000   2.0000 <NA>
+    ## 4          DEU          276  51.0000   9.0000 <NA>
+    ## 5          ITA          380  42.8333  12.8333 <NA>
+    ## 6          JPN          392  36.0000 138.0000 <NA>
+
+###### 3. Now it is possible to create the geom\_curve object for the 'sbb\_od' dataframe. We set the size of lines according to 'Backers'
+
+``` r
+sbb_conn <- geom_curve(data = sbb_od, aes(x = x, y = y, xend = xend, yend = yend, size=Backers), curvature = 0.1)
+bmap <- geom_polygon(data= L_mapworld_df, aes(long,lat, group=group), fill="white")
+
+ggplot() + bmap + sbb_conn
+```
+
+![](Flowmap_files/figure-markdown_github/unnamed-chunk-22-1.png)
+
+###### 4. Let's try to zoom into Europe. We first modify the alpha value to have a clearer picture of the lines tha overlap. Then we customized the bmap
+
+``` r
+sbb_conn <- geom_curve(data = sbb_od,
+                       aes(x = x, y = y, xend = xend, yend = yend, size=Backers), alpha = 0.5,
+                           colour ="#2bfd94", curvature = 0.1)
+
+bmap <- geom_polygon(data= mapworld_df, aes(long,lat, group=group), fill="grey95", colour="grey65", size=0.03)
+
+ggplot() + bmap + sbb_conn + coord_cartesian(xlim=xlim2, ylim=ylim2) +
+  scale_size_continuous(limits = c(0,300), breaks = c(30, 50, 100, 200)) +
   theme(legend.position="top", legend.title = element_text(face = "italic", family = "serif"))
 ```
 
-![](Flowmap_files/figure-markdown_github/unnamed-chunk-19-1.png)
+![](Flowmap_files/figure-markdown_github/unnamed-chunk-23-1.png)
+
+###### 4. One last step before using the theme\_map function, is to label the curves that end outside of the plot.
+
+``` r
+can <- geom_text(aes(x=-11, y=52, label = "Canada"), size=2.7)
+us <- geom_text(aes(x=-11, y=49.5, label = "US"), size=2.7)
+jap <- geom_text(aes(x=40, y=50.5, label = "Japan"), size=2.7)
+aus <- geom_text(aes(x=35, y=35, label = "Australia"), size=2.7)
+
+scsc <- scale_size_continuous(limits = c(0,300), breaks = c(30, 50, 100, 200))
+tema <- theme(legend.position="top", legend.title = element_text(face = "italic", family = "serif"))
+
+ggplot() + bmap + sbb_conn + coord_cartesian(xlim=xlim2, ylim=ylim2) +
+  scsc + theme_map() + tema + can + us + jap + aus
+```
+
+![](Flowmap_files/figure-markdown_github/unnamed-chunk-24-1.png)
